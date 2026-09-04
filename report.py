@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Günlük Kripto Raporu → Telegram Botu
+Günlük Altın Raporu → Telegram Botu
 =====================================
 
 Üç adımda çalışır:
@@ -65,14 +65,8 @@ HTTP_TIMEOUT = 30                            # API çağrıları için saniye
 MAX_RETRY = 3                                # Ağ hatalarında deneme sayısı
 CLAUDE_TIMEOUT = 600                         # Claude Code üretimi için üst sınır (saniye)
 
-# İzlenecek coin'ler: CoinGecko id -> gösterim adı (sembol)
-COINS = {
-    "bitcoin":     "BTC",
-    "ethereum":    "ETH",
-    "solana":      "SOL",
-    "binancecoin": "BNB",
-    "ripple":      "XRP",
-}
+# 1 ons (troy ounce) = 31.1034768 gram — ons fiyatından gram altın hesaplamak için
+ONS_GRAM = 31.1034768
 
 # Türkçe ay ve gün adları (tarih başlığı için)
 TR_AYLAR = [
@@ -84,11 +78,11 @@ TR_GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi
 
 # RAPOR PROMPTU — Adım 2'de headless Claude Code'a verilir.
 # {market_data} ve {tarih} çalışma anında doldurulur.
-RAPOR_PROMPTU = """Sen günlük kripto piyasa raporu hazırlayan, sabahları işe çıkmadan piyasayı 1 dakikada özetleyen bir analistsin. Web araması yaparak SON 24 SAATİN gelişmelerini araştır ve aşağıdaki formatta Türkçe rapor yaz.
+RAPOR_PROMPTU = """Sen günlük altın/emtia piyasa raporu hazırlayan, sabahları işe çıkmadan piyasayı 1 dakikada özetleyen bir analistsin. Web araması yaparak SON 24 SAATİN gelişmelerini araştır ve aşağıdaki formatta Türkçe rapor yaz.
 
 SANA VERİLEN PİYASA VERİLERİ:
 {market_data}
-Fiyat, dominans, hacim ve Fear & Greed değerlerini YALNIZCA buradan kullan; bu sayıları kendin arama, değiştirme, uydurma.
+Fiyat ve değişim değerlerini YALNIZCA buradan kullan; bu sayıları kendin arama, değiştirme, uydurma.
 
 ÇIKTI — Telegram HTML (<b>, <i>, <a href="">); markdown ve tablo KULLANMA. Rapor İKİ bölümdür; aralarına TAM olarak şu satırı koy: ---DETAY---
 
@@ -97,26 +91,26 @@ Fiyat, dominans, hacim ve Fear & Greed değerlerini YALNIZCA buradan kullan; bu 
 📊 <b>GÜNAYDIN — {tarih}</b>
 
 ⚡ <b>60 SANİYE</b>
-🌡️ Hava: [tek kelime: Temkinli / İyimser / Kararsız / Riskli] · F&amp;G [bugünkü değer] (dün [dünkü değer])
-₿ BTC [fiyat] ([24s %]) · Ξ ETH [fiyat] ([24s %])
-🔑 <b>Neden:</b> [Piyasa son 24 saatte NEDEN böyle hareket etti — en önemli sebep, 1-2 cümle]
+🌡️ Hava: [tek kelime: Temkinli / İyimser / Kararsız / Riskli]
+🥇 ONS ALTIN [fiyat] ([24s %]) · 🪙 GRAM ALTIN [fiyat TL] ([24s %])
+🔑 <b>Neden:</b> [Piyasa son 24 saatte NEDEN böyle hareket etti — Fed/faiz, dolar endeksi, jeopolitik risk gibi ana sebep, 1-2 cümle]
 ⏰ <b>Kritik:</b> [bugünün en önemli 2-3 olayı/saati, TSİ, çok kısa]
 ⚠️ <b>Risk:</b> [günün ana riski, tek cümle]
 
 Sonra ayrı bir satıra ---DETAY--- koy. Sonra BÖLÜM 2'yi (DETAY, isteyen için) yaz:
 
 📈 <b>PİYASA</b>
-[her coin tek satır: sembol — fiyat ([24s %])]
-Dominans: BTC %.. · ETH %.. — Hacim: ..
+[her satır: varlık — fiyat ([24s %])]
+Ons altın (XAU/USD), gram altın (TRY), gümüş (XAG/USD), USD/TRY ve EUR/TRY kurları — hepsini tek satır listele.
 
 ⏮️ <b>DÜNDEN</b> — Aşağıda "dünkü takip maddeleri" verildiyse, her birinin bugünkü SONUCUNU tek cümleyle yaz (isabet mi ıskaladık mı belli olsun). Madde verilmediyse bu bölümü TAMAMEN atla.
 
 📰 <b>GÜNDEM</b> — en önemli 3 gelişme. Her biri: [🔴 kritik / 🟡 önemli / 🟢 bilgi] <b>başlık</b> — 1-2 cümle + neden önemli — <a href="URL">kaynak</a>
 
 ⏰ <b>BUGÜN TAKİPTE</b>
-[zaman sıralı, her olay tek satır: "14:00 — ..." (TSİ)]
+[zaman sıralı, her olay tek satır: "14:00 — ..." (TSİ) — Fed konuşmaları, ABD enflasyon/istihdam verileri, TCMB kararları gibi altını etkileyecek olaylar]
 
-🇹🇷 <b>TÜRKİYE</b> — SPK, MKK, TCMB, BDDK veya mevzuatta YENİ gelişme varsa yaz; yoksa "Yeni gelişme yok". Asla uydurma.
+🇹🇷 <b>TÜRKİYE</b> — TCMB rezerv/faiz kararı, altın ithalat-ihracat mevzuatı veya BDDK'da YENİ gelişme varsa yaz; yoksa "Yeni gelişme yok". Asla uydurma.
 
 ⚠️ <b>RİSKLER</b> — en fazla 2 madde, kısa.
 
@@ -165,104 +159,77 @@ def _get_json(url, params=None):
 # Adım 1 — Sabit piyasa verileri (LLM KULLANMADAN)
 # --------------------------------------------------------------------------- #
 
+def _yuzde_degisim(simdi, onceki):
+    """(simdi - onceki) / onceki * 100; ikisinden biri yoksa/onceki sıfırsa None."""
+    if simdi is None or onceki is None or onceki == 0:
+        return None
+    return (simdi - onceki) / onceki * 100
+
+
 def piyasa_verilerini_cek():
     """
-    CoinGecko + Alternative.me'den ham sayıları çeker ve LLM'e verilecek
-    okunabilir bir metin bloğu üretir. LLM bu sayıları asla değiştirmez.
+    gold-api.com (ons altın + gümüş, USD) + frankfurter.dev (USD/TRY) üzerinden
+    ham sayıları çeker ve LLM'e verilecek okunabilir bir metin bloğu üretir.
+    LLM bu sayıları asla değiştirmez. 24s değişim, dünün kapanışının
+    state/takip.json'da saklanmasıyla hesaplanır (API geçmiş veri vermiyor).
     """
-    # 1a) Coin fiyatları + 24s değişim
-    fiyatlar = _get_json(
-        "https://api.coingecko.com/api/v3/simple/price",
-        params={
-            "ids": ",".join(COINS.keys()),
-            "vs_currencies": "usd",
-            "include_24hr_change": "true",
-        },
+    # 1a) Ons altın + gümüş (USD)
+    xau = _get_json("https://api.gold-api.com/price/XAU")
+    xag = _get_json("https://api.gold-api.com/price/XAG")
+    altin_ons = xau.get("price")
+    gumus_ons = xag.get("price")
+
+    # 1b) USD/TRY ve EUR/TRY kurları
+    fx_usd = _get_json(
+        "https://api.frankfurter.dev/v1/latest",
+        params={"base": "USD", "symbols": "TRY"},
     )
+    usdtry = fx_usd.get("rates", {}).get("TRY")
+    fx_eur = _get_json(
+        "https://api.frankfurter.dev/v1/latest",
+        params={"base": "EUR", "symbols": "TRY"},
+    )
+    eurtry = fx_eur.get("rates", {}).get("TRY")
 
-    # 1b) Global piyasa: toplam market cap, hacim, dominans
-    glob = _get_json("https://api.coingecko.com/api/v3/global").get("data", {})
-    toplam_mcap = glob.get("total_market_cap", {}).get("usd")
-    toplam_hacim = glob.get("total_volume", {}).get("usd")
-    dom = glob.get("market_cap_percentage", {})
-    btc_dom = dom.get("btc")
-    eth_dom = dom.get("eth")
+    # 1c) Gram altın (TRY) = ons fiyatı / 31.1034768 gram * USD/TRY kuru
+    gram_altin = (altin_ons / ONS_GRAM * usdtry) if (altin_ons and usdtry) else None
 
-    # 1c) Fear & Greed endeksi (bugün, dün, 7 gün önce)
-    fng_veri = _get_json("https://api.alternative.me/fng/", params={"limit": 8}).get("data", [])
-
-    def fng_at(i):
-        """i. indeksteki F&G kaydını 'değer (etiket)' biçiminde döndürür."""
-        if len(fng_veri) > i and fng_veri[i]:
-            return f"{fng_veri[i].get('value')} ({fng_veri[i].get('value_classification')})"
-        return "doğrulanamadı"
-
-    fng_bugun = fng_at(0)
-    fng_dun = fng_at(1)
-    fng_7gun = fng_at(7)
+    # 1d) Dünün kapanışıyla karşılaştırıp 24s değişim hesapla
+    onceki = onceki_fiyatlari_oku()
+    altin_ons_degisim = _yuzde_degisim(altin_ons, onceki.get("altin_ons"))
+    gram_altin_degisim = _yuzde_degisim(gram_altin, onceki.get("gram_altin"))
+    gumus_ons_degisim = _yuzde_degisim(gumus_ons, onceki.get("gumus_ons"))
+    usdtry_degisim = _yuzde_degisim(usdtry, onceki.get("usdtry"))
+    eurtry_degisim = _yuzde_degisim(eurtry, onceki.get("eurtry"))
 
     # --- LLM'e verilecek okunabilir metin bloğunu kur ---
-    satirlar = ["Coin fiyatları (USD, 24s değişim):"]
-    for cg_id, sembol in COINS.items():
-        d = fiyatlar.get(cg_id, {})
-        fiyat = d.get("usd")
-        degisim = d.get("usd_24h_change")
+    def satir(ad, fiyat, degisim, birim="$"):
         if fiyat is None:
-            satirlar.append(f"  {sembol}: doğrulanamadı")
-        else:
-            fiyat_str = f"${fiyat:,.2f}" if fiyat < 100 else f"${fiyat:,.0f}"
-            degisim_str = f"{degisim:+.2f}%" if degisim is not None else "n/a"
-            satirlar.append(f"  {sembol}: {fiyat_str} ({degisim_str})")
+            return f"  {ad}: doğrulanamadı"
+        fiyat_str = f"{birim}{fiyat:,.2f}"
+        degisim_str = f"{degisim:+.2f}%" if degisim is not None else "n/a (ilk çalışma)"
+        return f"  {ad}: {fiyat_str} ({degisim_str})"
 
-    def usd_kisalt(v):
-        """Büyük USD tutarını T/B (trilyon/milyar) biçiminde kısaltır."""
-        if v is None:
-            return "doğrulanamadı"
-        if v >= 1e12:
-            return f"${v / 1e12:.2f}T"
-        if v >= 1e9:
-            return f"${v / 1e9:.2f}B"
-        return f"${v:,.0f}"
-
-    satirlar.append("")
-    satirlar.append(f"Toplam piyasa değeri: {usd_kisalt(toplam_mcap)}")
-    satirlar.append(f"24s toplam hacim: {usd_kisalt(toplam_hacim)}")
-    satirlar.append(
-        "BTC dominansı: "
-        + (f"{btc_dom:.1f}%" if btc_dom is not None else "doğrulanamadı")
-    )
-    satirlar.append(
-        "ETH dominansı: "
-        + (f"{eth_dom:.1f}%" if eth_dom is not None else "doğrulanamadı")
-    )
-    satirlar.append("")
-    satirlar.append(f"Fear & Greed — bugün: {fng_bugun} | dün: {fng_dun} | 7 gün önce: {fng_7gun}")
+    satirlar = ["Piyasa fiyatları (24s değişim):"]
+    satirlar.append(satir("Ons altın (XAU/USD)", altin_ons, altin_ons_degisim, "$"))
+    satirlar.append(satir("Gram altın (TRY)", gram_altin, gram_altin_degisim, "₺"))
+    satirlar.append(satir("Gümüş (XAG/USD)", gumus_ons, gumus_ons_degisim, "$"))
+    satirlar.append(satir("USD/TRY", usdtry, usdtry_degisim, ""))
+    satirlar.append(satir("EUR/TRY", eurtry, eurtry_degisim, ""))
 
     # --- Kart için yapılandırılmış ham veri ---
-    def _coin(cg_id):
-        cd = fiyatlar.get(cg_id, {})
-        return {"fiyat": cd.get("usd"), "degisim": cd.get("usd_24h_change")}
-
-    _ETIKET_TR = {"Extreme Fear": "Aşırı Korku", "Fear": "Korku", "Neutral": "Nötr",
-                  "Greed": "Açgözlülük", "Extreme Greed": "Aşırı Açgözlülük"}
-
-    def _iint(v):
-        try:
-            return int(v)
-        except (TypeError, ValueError):
-            return None
-
-    _f0 = fng_veri[0] if fng_veri else {}
-    _f1 = fng_veri[1] if len(fng_veri) > 1 else {}
     veri = {
-        "btc": _coin("bitcoin"), "eth": _coin("ethereum"), "sol": _coin("solana"),
-        "bnb": _coin("binancecoin"), "xrp": _coin("ripple"),
-        "btc_dom": btc_dom, "eth_dom": eth_dom,
-        "hacim": toplam_hacim, "mcap": toplam_mcap,
-        "fng_deger": _iint(_f0.get("value")),
-        "fng_etiket": _ETIKET_TR.get(_f0.get("value_classification"),
-                                     _f0.get("value_classification") or ""),
-        "fng_dun": _iint(_f1.get("value")),
+        "altin_ons": {"fiyat": altin_ons, "degisim": altin_ons_degisim},
+        "gram_altin": {"fiyat": gram_altin, "degisim": gram_altin_degisim},
+        "gumus_ons": {"fiyat": gumus_ons, "degisim": gumus_ons_degisim},
+        "usdtry": {"fiyat": usdtry, "degisim": usdtry_degisim},
+        "eurtry": {"fiyat": eurtry, "degisim": eurtry_degisim},
+        # Yarının 24s değişimi için bugünün ham fiyatlarını da taşıyoruz
+        # (takip_yaz() bunu state/takip.json'a yazar).
+        "_kaydedilecek": {
+            "altin_ons": altin_ons, "gram_altin": gram_altin,
+            "gumus_ons": gumus_ons, "usdtry": usdtry, "eurtry": eurtry,
+        },
     }
 
     return "\n".join(satirlar), veri
@@ -305,11 +272,19 @@ def rapor_uret(market_data, dun_takip_str=""):
         prompt += chr(10) * 2 + "DÜNKÜ TAKİP MADDELERİ: yok (⏮️ DÜNDEN bölümünü atla)."
 
     # Çıktıyı düz metin olarak alıyoruz. --allowedTools ile sadece web araçlarına izin.
+    # Repo dizininde çalıştırırsak model report.py'yi okuyup "ben bir kurulum
+    # asistanıyım" moduna girebiliyor (CLAUDE.md + kod dosyalarını keşfediyor) —
+    # bu yüzden izole, boş bir geçici dizinde çalıştırıyoruz; raporu yazmak için
+    # repo dosyalarına ihtiyacı yok, sadece {market_data} ve web araması yeterli.
+    izole_dizin = tempfile.mkdtemp(prefix="altin-rapor-")
+    # ÖNEMLİ: -p/prompt argümanı EN SONDA olmalı — önce gelirse CLI parser
+    # sonrasındaki --allowedTools/--output-format bayraklarını prompt'un bir
+    # parçası sanıp yutuyor ve WebSearch hiç onaylanmamış oluyor.
     komut = [
         claude_bin,
-        "-p", prompt,
         "--allowedTools", "WebSearch", "WebFetch",
         "--output-format", "text",
+        "-p", prompt,
     ]
 
     print("[bilgi] Claude Code raporu üretiyor (web araması yapılıyor)...", file=sys.stderr)
@@ -320,7 +295,7 @@ def rapor_uret(market_data, dun_takip_str=""):
         try:
             sonuc = subprocess.run(
                 komut, capture_output=True, text=True,
-                encoding="utf-8", timeout=CLAUDE_TIMEOUT,
+                encoding="utf-8", timeout=CLAUDE_TIMEOUT, cwd=izole_dizin,
             )
         except subprocess.TimeoutExpired:
             son_hata = f"{CLAUDE_TIMEOUT} sn'de yanıt yok"
@@ -334,6 +309,7 @@ def rapor_uret(market_data, dun_takip_str=""):
             elif len((sonuc.stdout or "").strip()) < 200:
                 son_hata = "beklenenden kısa çıktı: %r" % (sonuc.stdout or "").strip()
             else:
+                shutil.rmtree(izole_dizin, ignore_errors=True)
                 return sonuc.stdout.strip()
 
         print(f"[uyarı] Rapor üretimi başarısız ({deneme}/{MAX_RETRY}): {son_hata}",
@@ -341,6 +317,7 @@ def rapor_uret(market_data, dun_takip_str=""):
         if deneme < MAX_RETRY:
             time.sleep(8 * deneme)
 
+    shutil.rmtree(izole_dizin, ignore_errors=True)
     raise RuntimeError(f"Claude Code {MAX_RETRY} denemede rapor üretemedi: {son_hata}")
 
 
@@ -477,7 +454,7 @@ def admin_hata_bildir(mesaj):
         return
     now = datetime.now(IST).strftime("%d.%m.%Y %H:%M")
     guvenli = html.escape(mesaj[:1000])
-    metin = f"⚠️ <b>Kripto rapor botu HATASI</b>\n{now} (TSİ)\n\n<code>{guvenli}</code>"
+    metin = f"⚠️ <b>Altın rapor botu HATASI</b>\n{now} (TSİ)\n\n<code>{guvenli}</code>"
     try:
         telegram_gonder(bot_token, admin_id, metin)
     except Exception as e:                           # noqa: BLE001
@@ -537,11 +514,24 @@ def takip_ayikla(rapor):
     return temiz, takip
 
 
-def takip_yaz(takip):
-    """Bugünün takip listesini state/takip.json'a yazar (yarın 'DÜNDEN' için)."""
+def onceki_fiyatlari_oku():
+    """state/takip.json varsa dünün ham fiyat kaydını (dict) döndürür; yoksa {}.
+    24 saatlik değişim yüzdesini hesaplamak için kullanılır."""
+    try:
+        with open(STATE_YOL, encoding="utf-8") as f:
+            f = json.load(f).get("fiyatlar", {})
+        return f if isinstance(f, dict) else {}
+    except (FileNotFoundError, ValueError, OSError):
+        return {}
+
+
+def takip_yaz(takip, fiyatlar=None):
+    """Bugünün takip listesini ve fiyat kaydını state/takip.json'a yazar
+    (yarın 'DÜNDEN' ve 24s değişim hesabı için)."""
     os.makedirs(os.path.dirname(STATE_YOL), exist_ok=True)
     with open(STATE_YOL, "w", encoding="utf-8") as f:
-        json.dump({"tarih": datetime.now(IST).strftime("%Y-%m-%d"), "takip": takip},
+        json.dump({"tarih": datetime.now(IST).strftime("%Y-%m-%d"), "takip": takip,
+                   "fiyatlar": fiyatlar or {}},
                   f, ensure_ascii=False, indent=2)
 
 
@@ -735,7 +725,7 @@ def main():
         # Bugünün takip listesini yarın için kaydet (test modunda kaydetme)
         if not test_modu and not onizleme:
             try:
-                takip_yaz(bugun_takip)
+                takip_yaz(bugun_takip, veri.get("_kaydedilecek"))
                 print(f"[bilgi] {len(bugun_takip)} takip maddesi kaydedildi.", file=sys.stderr)
             except Exception as se:                   # noqa: BLE001
                 print(f"[uyarı] Takip kaydedilemedi: {se}", file=sys.stderr)

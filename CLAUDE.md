@@ -1,11 +1,11 @@
 # Claude Code için Kurulum Rehberi (Otomatik Onboarding)
 
-Bu dosya, bu repoyu **Claude Code**'da açan yeni bir kullanıcıyı sıfırdan kuruluma yönlendirmen içindir. Kullanıcı büyük ihtimalle teknik değil — sabırlı, adım adım ve Türkçe ilerle. Amacın: kullanıcının her sabah 08:00'de (TSİ) Telegram kanalına/grubuna otomatik kripto raporu göndermesini sağlamak.
+Bu dosya, bu repoyu **Claude Code**'da açan yeni bir kullanıcıyı sıfırdan kuruluma yönlendirmen içindir. Kullanıcı büyük ihtimalle teknik değil — sabırlı, adım adım ve Türkçe ilerle. Amacın: kullanıcının her sabah 08:00'de (TSİ) Telegram kanalına/grubuna otomatik altın/emtia raporu göndermesini sağlamak.
 
 ## Bu proje nedir?
 
 Her sabah GitHub Actions cron ile çalışan bir bot. `report.py` üç adımda çalışır:
-1. **Sabit veriler** — CoinGecko + Alternative.me ücretsiz API'lerinden fiyat/dominans/Fear&Greed (LLM yok, halüsinasyon yok).
+1. **Sabit veriler** — gold-api.com (ons altın + gümüş, USD) ve frankfurter.dev (USD/TRY, EUR/TRY) ücretsiz API'lerinden fiyatlar (LLM yok, halüsinasyon yok). 24s değişim, dünün kapanışının `state/takip.json`'da saklanmasıyla hesaplanır.
 2. **Haber & analiz** — headless `claude -p` web araması yaparak raporu yazar (Anthropic API key YOK; `CLAUDE_CODE_OAUTH_TOKEN` ile abonelikten).
 3. **Gönderim** — Telegram'a HTML formatında, 4096 karakter bölünerek.
 

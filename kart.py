@@ -43,36 +43,19 @@ def _para(v):
     return f"${v:.4f}"
 
 
-def _kisalt(v):
+def _para_tl(v):
     if v is None:
         return "—"
-    if v >= 1e12:
-        return f"${v/1e12:.2f}T"
-    if v >= 1e9:
-        return f"${v/1e9:.1f}B"
-    return f"${v:,.0f}"
+    return f"₺{v:,.0f}"
 
 
-def _fng_renk(deger):
-    if deger is None:
-        return MUTED
-    if deger < 25:
-        return DOWN
-    if deger < 45:
-        return (230, 150, 80)
-    if deger < 55:
-        return ACCENT
-    if deger < 75:
-        return (120, 200, 120)
-    return UP
-
-
-def _coin_satiri(d, y, ad, veri):
-    """Bir coin bloğu: ad + fiyat solda, değişim çipi sağda."""
+def _varlik_satiri(d, y, ad, veri, tl=False):
+    """Bir varlık bloğu: ad + fiyat solda, değişim çipi sağda."""
     fiyat = veri.get("fiyat")
     deg = veri.get("degisim")
     d.text((M, y), ad, font=_f("reg", 40), fill=MUTED)
-    d.text((M, y + 46), _para(fiyat), font=_f("bold", 82), fill=INK)
+    fiyat_str = _para_tl(fiyat) if tl else _para(fiyat)
+    d.text((M, y + 46), fiyat_str, font=_f("bold", 82), fill=INK)
     # değişim çipi (sağ)
     if deg is not None:
         renk = UP if deg >= 0 else DOWN
@@ -111,40 +94,38 @@ def kart_olustur(veri, hava, risk, tarih):
     d = ImageDraw.Draw(img, "RGBA")
 
     # ---- üst şerit ----
-    d.text((M, 74), "GÜNAYDIN KRİPTO", font=_f("bold", 40), fill=ACCENT)
+    d.text((M, 74), "GÜNAYDIN ALTIN", font=_f("bold", 40), fill=ACCENT)
     d.text((W - M, 82), "@DogukanLive", font=_f("reg", 30), fill=MUTED, anchor="ra")
     d.text((M, 128), tarih, font=_f("reg", 32), fill=MUTED)
     d.line([M, 196, W - M, 196], fill=LINE, width=2)
 
-    # ---- BTC / ETH ----
-    _coin_satiri(d, 236, "BITCOIN", veri.get("btc", {}))
-    _coin_satiri(d, 404, "ETHEREUM", veri.get("eth", {}))
+    # ---- Ons altın / Gümüş ----
+    _varlik_satiri(d, 236, "ONS ALTIN (XAU/USD)", veri.get("altin_ons", {}))
+    _varlik_satiri(d, 404, "GÜMÜŞ (XAG/USD)", veri.get("gumus_ons", {}))
     d.line([M, 596, W - M, 596], fill=LINE, width=2)
 
-    # ---- dominans + hacim (iki sütun) ----
+    # ---- gram altın + USD/TRY (iki sütun) ----
     y = 640
     yarim = W // 2
-    d.text((M, y), "DOMİNANS", font=_f("reg", 30), fill=MUTED)
-    bd = veri.get("btc_dom"); ed = veri.get("eth_dom")
-    dom = (f"BTC %{bd:.1f} · ETH %{ed:.1f}" if bd is not None and ed is not None else "—")
-    d.text((M, y + 42), dom, font=_f("bold", 40), fill=INK)
-    d.text((yarim + 30, y), "24S HACİM", font=_f("reg", 30), fill=MUTED)
-    d.text((yarim + 30, y + 42), _kisalt(veri.get("hacim")), font=_f("bold", 40), fill=INK)
+    ga = veri.get("gram_altin", {})
+    d.text((M, y), "GRAM ALTIN", font=_f("reg", 30), fill=MUTED)
+    d.text((M, y + 42), _para_tl(ga.get("fiyat")), font=_f("bold", 40), fill=INK)
+    ut = veri.get("usdtry", {})
+    d.text((yarim + 30, y), "USD/TRY", font=_f("reg", 30), fill=MUTED)
+    ut_fiyat = ut.get("fiyat")
+    d.text((yarim + 30, y + 42), (f"₺{ut_fiyat:,.2f}" if ut_fiyat is not None else "—"),
+           font=_f("bold", 40), fill=INK)
 
-    # ---- Fear & Greed ----
-    y = 786
-    fng = veri.get("fng_deger")
-    renk = _fng_renk(fng)
-    d.text((M, y), "FEAR & GREED", font=_f("reg", 30), fill=MUTED)
-    d.text((M, y + 40), (str(fng) if fng is not None else "—"), font=_f("bold", 96), fill=renk)
-    etiket = veri.get("fng_etiket", "")
-    d.text((M + 190, y + 92), etiket, font=_f("bold", 44), fill=renk)
-    dun = veri.get("fng_dun")
-    if dun is not None:
-        d.text((M + 190, y + 52), f"dün {dun}", font=_f("reg", 30), fill=MUTED)
+    # ---- EUR/TRY (USD/TRY'nin altında) ----
+    y2 = y + 100
+    et = veri.get("eurtry", {})
+    d.text((yarim + 30, y2), "EUR/TRY", font=_f("reg", 30), fill=MUTED)
+    et_fiyat = et.get("fiyat")
+    d.text((yarim + 30, y2 + 42), (f"₺{et_fiyat:,.2f}" if et_fiyat is not None else "—"),
+           font=_f("bold", 40), fill=INK)
 
     # ---- Hava (mood) çipi ----
-    hy = 786
+    hy = y2 + 100
     hfnt = _f("bold", 46)
     htxt = f"Hava: {hava}"
     tw = d.textlength(htxt, font=hfnt)
@@ -178,11 +159,11 @@ def kart_olustur(veri, hava, risk, tarih):
 
 if __name__ == "__main__":
     ornek = {
-        "btc": {"fiyat": 64000, "degisim": -0.3},
-        "eth": {"fiyat": 1840, "degisim": -1.8},
-        "btc_dom": 56.4, "eth_dom": 9.8,
-        "hacim": 6.68e10,
-        "fng_deger": 27, "fng_etiket": "Korku", "fng_dun": 25,
+        "altin_ons": {"fiyat": 4425.70, "degisim": 0.8},
+        "gumus_ons": {"fiyat": 66.10, "degisim": 1.4},
+        "gram_altin": {"fiyat": 6683.0, "degisim": 0.6},
+        "usdtry": {"fiyat": 48.44, "degisim": -0.2},
+        "eurtry": {"fiyat": 56.78, "degisim": -0.1},
     }
     from datetime import datetime
     from zoneinfo import ZoneInfo

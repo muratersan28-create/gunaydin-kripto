@@ -76,6 +76,7 @@ jobs:
           TELEGRAM_BOT_TOKEN:      ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:        ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_ADMIN_CHAT_ID:  ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          TWELVE_DATA_API_KEY:     ${{ secrets.TWELVE_DATA_API_KEY }}
           # Zamanlanmış çalışmada sabit teslim 08:00 TSİ; manuel çalışmada kullanıcı
           # saat girdiyse o, girmediyse boş (hemen gönderir).
           DELIVER_AT_TR: ${{ github.event_name == 'schedule' && '08:00' || inputs.deliver_at }}

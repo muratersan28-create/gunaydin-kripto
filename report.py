@@ -704,6 +704,24 @@ def main():
         except Exception as ses_hata:                # noqa: BLE001
             print(f"[uyarı] Sesli özet oluşturulamadı: {ses_hata}", file=sys.stderr)
 
+        # Teknik analiz grafiği: destek/direnç + olası giriş/SL/TP (best-effort —
+        # hata olsa rapor yine gider). LLM kullanmaz, kural bazlı hesaplanır.
+        teknik_png, teknik_metin = None, ""
+        try:
+            import teknik
+            mumlar, t_analiz = teknik.analiz_uret(spot_fiyat=veri.get("altin_ons", {}).get("fiyat"))
+            teknik_tarih = f"{tarih_basligi()} {datetime.now(IST).strftime('%H:%M')} TSİ"
+            teknik_png = teknik.grafik_olustur(mumlar, t_analiz, teknik_tarih)
+            teknik_metin = (
+                "📐 <b>TEKNİK GÖRÜNÜM</b> (ons altın, M5)\n"
+                f"Trend: {t_analiz['trend']} · Olası yön: {t_analiz['yon']}\n"
+                f"Destek {t_analiz['destek']:,.1f} · Direnç {t_analiz['direnc']:,.1f}\n"
+                f"Giriş {t_analiz['giris']:,.1f} · SL {t_analiz['sl']:,.1f} · TP {t_analiz['tp']:,.1f}\n"
+                "<i>Yatırım tavsiyesi değildir — sadece teknik gösterimdir.</i>"
+            )
+        except Exception as teknik_hata:              # noqa: BLE001
+            print(f"[uyarı] Teknik analiz grafiği oluşturulamadı: {teknik_hata}", file=sys.stderr)
+
         for ad, hid in hedefler:
             # 1) İLK MESAJ = kart + brief (görsel ilk mesaja bağlı). Kart yoksa brief metin.
             if png is not None and len(brief) <= 1024:
@@ -720,6 +738,10 @@ def main():
             for detay in detaylar:
                 time.sleep(1)
                 raporu_yolla(bot_token, hid, detay)
+            # 4) Teknik analiz grafiği (ayrı mesaj)
+            if teknik_png is not None:
+                time.sleep(1)
+                foto_gonder(bot_token, hid, teknik_png, caption=teknik_metin)
             print(f"[başarılı] '{ad}' hedefine gönderildi (kart + brief + ses + detay).", file=sys.stderr)
 
         # Bugünün takip listesini yarın için kaydet (test modunda kaydetme)

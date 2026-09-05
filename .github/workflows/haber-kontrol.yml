@@ -1,0 +1,63 @@
+name: Gün İçi Haber Kontrolü
+
+# Her 2 saatte bir altın/emtia piyasasını etkileyebilecek GERÇEKTEN yeni ve
+# önemli bir gelişme olup olmadığını kontrol eder. Önemli bir şey yoksa
+# TAMAMEN SESSİZ kalır — kanala mesaj gitmez, sadece log'a düşer.
+on:
+  schedule:
+    - cron: "15 */2 * * *"   # her 2 saatte bir, :15'te (08:00 raporuyla çakışmasın diye)
+  workflow_dispatch:
+
+concurrency:
+  group: haber-kontrol
+  cancel-in-progress: false
+
+jobs:
+  kontrol:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 10
+
+    steps:
+      - name: Repoyu çek
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python 3.11 kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Node.js kur (Claude Code CLI için)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Python bağımlılıklarını kur
+        run: pip install -r requirements.txt
+
+      - name: Claude Code CLI kur
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Haberleri kontrol et
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          TELEGRAM_BOT_TOKEN:      ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:        ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ADMIN_CHAT_ID:  ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+        run: python haber_kontrol.py
+
+      - name: Haber takip durumunu kaydet
+        run: |
+          if [ -n "$(git status --porcelain state/haber_takip.json 2>/dev/null)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state/haber_takip.json
+            git commit -m "chore: haber takip durumu"
+            git pull --rebase --autostash origin main || true
+            git push || echo "push basarisiz (best-effort)"
+          else
+            echo "takip degismedi"
+          fi

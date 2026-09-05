@@ -29,6 +29,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, FancyBboxPatch
 from matplotlib.dates import DateFormatter
+from matplotlib.lines import Line2D
 import matplotlib.dates as mdates
 
 IST = ZoneInfo("Europe/Istanbul")
@@ -378,11 +379,31 @@ def grafik_olustur(mumlar, analiz, son_n=None):
 
     ax.set_xlim(zamanlar[0], x1_dt)
     tum_y = [m["l"] for m in veri] + [m["h"] for m in veri] + list(etiket_y.values())
-    araci = max(tum_y) - min(tum_y)
+    alt_dogal, ust_dogal = min(tum_y), max(tum_y)
+    araci = ust_dogal - alt_dogal
+
+    # Piyasa çok durgunken (tüm mumların toplam aralığı, tek bir mumun kendi
+    # fitiline yakın kalıyor) tek bir mum grafiğin tamamını kaplayan sahte bir
+    # "sivri uç" gibi görünüyordu. Görünen aralığa bir TABAN koyarak (en büyük
+    # tek mumun ~6 katı) bunu önlüyoruz — gerçek veri değişmiyor, sadece
+    # dikey ölçek aşırı yakınlaşmıyor.
+    en_buyuk_mum = max(m["h"] - m["l"] for m in veri)
+    min_gerekli_araci = en_buyuk_mum * 3
+    if araci < min_gerekli_araci:
+        orta = (alt_dogal + ust_dogal) / 2
+        alt_dogal = orta - min_gerekli_araci / 2
+        ust_dogal = orta + min_gerekli_araci / 2
+        araci = min_gerekli_araci
+
     # Üstte CANLI BID/ASK yazısı için, altta açıklama kutusu için pay bırak —
     # yoksa SL/GİRİŞ/TP çizgileri (senaryoya göre üstte ya da altta kalabilir)
     # bu sabit-konumlu öğelerin üzerine biniyordu.
-    ax.set_ylim(min(tum_y) - araci * 0.22, max(tum_y) + araci * 0.16)
+    ax.set_ylim(alt_dogal - araci * 0.22, ust_dogal + araci * 0.16)
+
+    # SL ve TP3 (en dış sınırlar) için ince "bölge" gölgelemesi
+    bolge_yuksekligi = araci * 0.012
+    ax.axhspan(sl - bolge_yuksekligi, sl + bolge_yuksekligi, color=SL_RENK, alpha=0.12, zorder=0)
+    ax.axhspan(tp3 - bolge_yuksekligi, tp3 + bolge_yuksekligi, color=TP_RENK, alpha=0.12, zorder=0)
 
     ax.yaxis.tick_right()
     ax.tick_params(colors=MUTED, labelsize=8.5)
@@ -396,6 +417,16 @@ def grafik_olustur(mumlar, analiz, son_n=None):
 
     ax.text(0.008, 0.965, f"CANLI BID: {analiz['bid']:,.2f}   |   ASK: {analiz['ask']:,.2f}",
             transform=ax.transAxes, color=INK, fontsize=9.5, va="top", ha="left", zorder=6)
+
+    # Lejant kutusu (üst sol)
+    lejant_elemanlari = [
+        Line2D([0], [0], color=GIRIS_RENK, lw=1.8, label="Giriş"),
+        Line2D([0], [0], color=SL_RENK, lw=1.8, label="SL"),
+        Line2D([0], [0], color=TP_RENK, lw=1.5, linestyle="--", label="TP1 / TP2 / TP3"),
+    ]
+    ax.legend(handles=lejant_elemanlari, loc="upper left", frameon=True, fontsize=8.5,
+              facecolor=BG, edgecolor="#c9cdd4", framealpha=0.95,
+              bbox_to_anchor=(0.006, 0.895), bbox_transform=ax.transAxes)
 
     kutu = FancyBboxPatch((0.008, 0.008), 0.30, 0.115, transform=ax.transAxes,
                           boxstyle="round,pad=0.01,rounding_size=0.012",

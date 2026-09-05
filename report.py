@@ -710,14 +710,14 @@ def main():
         try:
             import teknik
             mumlar, t_analiz = teknik.analiz_uret(spot_fiyat=veri.get("altin_ons", {}).get("fiyat"))
-            teknik_tarih = f"{tarih_basligi()} {datetime.now(IST).strftime('%H:%M')} TSİ"
-            teknik_png = teknik.grafik_olustur(mumlar, t_analiz, teknik_tarih)
+            teknik_png = teknik.grafik_olustur(mumlar, t_analiz)
+            t_yon = "BUY" if t_analiz["yon"].startswith("LONG") else "SELL"
             teknik_metin = (
-                "📐 <b>TEKNİK GÖRÜNÜM</b> (ons altın, M5)\n"
-                f"Trend: {t_analiz['trend']} · Olası yön: {t_analiz['yon']}\n"
-                f"Destek {t_analiz['destek']:,.1f} · Direnç {t_analiz['direnc']:,.1f}\n"
-                f"Giriş {t_analiz['giris']:,.1f} · SL {t_analiz['sl']:,.1f} · TP {t_analiz['tp']:,.1f}\n"
-                "<i>Yatırım tavsiyesi değildir — sadece teknik gösterimdir.</i>"
+                f"📐 <b>{t_analiz['durum']}</b> — XAUUSD M5 {t_yon} senaryosu "
+                f"(Güven %{t_analiz['guven']})\n"
+                f"Giriş {t_analiz['giris']:,.2f} · SL {t_analiz['sl']:,.2f}\n"
+                f"TP1 {t_analiz['tp1']:,.2f} · TP2 {t_analiz['tp2']:,.2f} · TP3 {t_analiz['tp3']:,.2f}\n"
+                "<i>Yatırım tavsiyesi değildir — sadece teknik/eğitim amaçlıdır.</i>"
             )
         except Exception as teknik_hata:              # noqa: BLE001
             print(f"[uyarı] Teknik analiz grafiği oluşturulamadı: {teknik_hata}", file=sys.stderr)

@@ -8,15 +8,13 @@ botla özel sohbetindeki mesajları dinler (kanal/grup değil).
 state/komut_takip.json'da işlenen son Telegram update_id saklanır, aynı
 mesaj iki kez işlenmez (Telegram'ın standart long-polling offset yöntemi).
 
-Desteklenen zaman dilimleri: M5, M15, M30, H1, H4 (teknik.TIMEFRAMES).
+Desteklenen zaman dilimleri: M1, M5, M15, M30, H1, H4 (teknik.TIMEFRAMES).
 Örnek: "/teknik", "/teknik M15", "/teknik h4"
 """
 import json
 import os
 import re
 import sys
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 import requests
 
@@ -27,7 +25,6 @@ STATE_YOL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state", "k
 KOMUT_DESENI = re.compile(
     r"^/teknik(?:@\w+)?\s*(" + "|".join(teknik.TIMEFRAMES) + r")?\s*$", re.IGNORECASE
 )
-IST = ZoneInfo("Europe/Istanbul")
 
 
 def _son_update_id_oku():
@@ -46,14 +43,14 @@ def _son_update_id_yaz(update_id):
 
 def _teknik_gonder(bot_token, chat_id, zaman_dilimi):
     mumlar, analiz = teknik.analiz_uret(zaman_dilimi)
-    tarih = datetime.now(IST).strftime("%d.%m.%Y %H:%M")
-    png = teknik.grafik_olustur(mumlar, analiz, tarih)
+    png = teknik.grafik_olustur(mumlar, analiz)
+    yon = "BUY" if analiz["yon"].startswith("LONG") else "SELL"
     altyazi = (
-        f"📐 <b>TEKNİK GÖRÜNÜM</b> (ons altın, {zaman_dilimi})\n"
-        f"Trend: {analiz['trend']} · Olası yön: {analiz['yon']}\n"
-        f"Destek {analiz['destek']:,.1f} · Direnç {analiz['direnc']:,.1f}\n"
-        f"Giriş {analiz['giris']:,.1f} · SL {analiz['sl']:,.1f} · TP {analiz['tp']:,.1f}\n"
-        "<i>Yatırım tavsiyesi değildir — sadece teknik gösterimdir.</i>"
+        f"📐 <b>{analiz['durum']}</b> — XAUUSD {zaman_dilimi} {yon} senaryosu "
+        f"(Güven %{analiz['guven']})\n"
+        f"Giriş {analiz['giris']:,.2f} · SL {analiz['sl']:,.2f}\n"
+        f"TP1 {analiz['tp1']:,.2f} · TP2 {analiz['tp2']:,.2f} · TP3 {analiz['tp3']:,.2f}\n"
+        "<i>Yatırım tavsiyesi değildir — sadece teknik/eğitim amaçlıdır.</i>"
     )
     foto_gonder(bot_token, chat_id, png, caption=altyazi)
 

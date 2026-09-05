@@ -598,28 +598,6 @@ def foto_gonder(bot_token, chat_id, png_bytes, caption="", html_modu=True):
     raise RuntimeError(f"Kart gönderimi {MAX_RETRY} denemede başarısız: {_gizle(last_err)}")
 
 
-def ses_gonder(bot_token, chat_id, ogg_bytes):
-    """Telegram'a sesli mesaj (OGG/Opus) gönderir; ağ hatasında retry yapar."""
-    url = f"https://api.telegram.org/bot{bot_token}/sendVoice"
-    last_err = None
-    for deneme in range(1, MAX_RETRY + 1):
-        try:
-            r = requests.post(url, data={"chat_id": chat_id},
-                              files={"voice": ("ses.ogg", ogg_bytes, "audio/ogg")},
-                              timeout=HTTP_TIMEOUT)
-            cevap = r.json()
-            if not cevap.get("ok"):
-                raise RuntimeError(f"sendVoice hatası: {cevap.get('description')}")
-            return cevap
-        except Exception as e:                       # noqa: BLE001
-            last_err = e
-            print(f"[uyarı] Ses gönderimi başarısız ({deneme}/{MAX_RETRY}): {_gizle(e)}",
-                  file=sys.stderr)
-            if deneme < MAX_RETRY:
-                time.sleep(2 * deneme)
-    raise RuntimeError(f"Ses gönderimi {MAX_RETRY} denemede başarısız: {_gizle(last_err)}")
-
-
 def main():
     test_modu = "--test" in sys.argv
     onizleme = "--onizleme" in sys.argv  # sadece admin, etiketsiz (önizleme)
@@ -696,32 +674,6 @@ def main():
         except Exception as kart_hata:               # noqa: BLE001
             print(f"[uyarı] Kart oluşturulamadı: {kart_hata}", file=sys.stderr)
 
-        # Sesli özeti bir kez üret (best-effort — hata olsa rapor yine gider)
-        ogg = None
-        try:
-            import ses
-            ogg = ses.ses_uret(brief, tarih_basligi())
-        except Exception as ses_hata:                # noqa: BLE001
-            print(f"[uyarı] Sesli özet oluşturulamadı: {ses_hata}", file=sys.stderr)
-
-        # Teknik analiz grafiği: destek/direnç + olası giriş/SL/TP (best-effort —
-        # hata olsa rapor yine gider). LLM kullanmaz, kural bazlı hesaplanır.
-        teknik_png, teknik_metin = None, ""
-        try:
-            import teknik
-            mumlar, t_analiz = teknik.analiz_uret(spot_fiyat=veri.get("altin_ons", {}).get("fiyat"))
-            teknik_png = teknik.grafik_olustur(mumlar, t_analiz)
-            t_yon = "BUY" if t_analiz["yon"].startswith("LONG") else "SELL"
-            teknik_metin = (
-                f"📐 <b>{t_analiz['durum']}</b> — XAUUSD M5 {t_yon} senaryosu "
-                f"(Güven %{t_analiz['guven']})\n"
-                f"Giriş {t_analiz['giris']:,.2f} · SL {t_analiz['sl']:,.2f}\n"
-                f"TP1 {t_analiz['tp1']:,.2f} · TP2 {t_analiz['tp2']:,.2f} · TP3 {t_analiz['tp3']:,.2f}\n"
-                "<i>Yatırım tavsiyesi değildir — sadece teknik/eğitim amaçlıdır.</i>"
-            )
-        except Exception as teknik_hata:              # noqa: BLE001
-            print(f"[uyarı] Teknik analiz grafiği oluşturulamadı: {teknik_hata}", file=sys.stderr)
-
         for ad, hid in hedefler:
             # 1) İLK MESAJ = kart + brief (görsel ilk mesaja bağlı). Kart yoksa brief metin.
             if png is not None and len(brief) <= 1024:
@@ -730,19 +682,11 @@ def main():
                 raporu_yolla(bot_token, hid, brief)
                 if png is not None:
                     foto_gonder(bot_token, hid, png)
-            # 2) Sesli özet
-            if ogg is not None:
-                time.sleep(1)
-                ses_gonder(bot_token, hid, ogg)
-            # 3) Detay mesaj(lar)ı
+            # 2) Detay mesaj(lar)ı
             for detay in detaylar:
                 time.sleep(1)
                 raporu_yolla(bot_token, hid, detay)
-            # 4) Teknik analiz grafiği (ayrı mesaj)
-            if teknik_png is not None:
-                time.sleep(1)
-                foto_gonder(bot_token, hid, teknik_png, caption=teknik_metin)
-            print(f"[başarılı] '{ad}' hedefine gönderildi (kart + brief + ses + detay).", file=sys.stderr)
+            print(f"[başarılı] '{ad}' hedefine gönderildi (kart + brief + detay).", file=sys.stderr)
 
         # Bugünün takip listesini yarın için kaydet (test modunda kaydetme)
         if not test_modu and not onizleme:

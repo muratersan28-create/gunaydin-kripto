@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Ons altın için çoklu zaman dilimli (M1–H4) teknik analiz grafiği
+"""Ons altın için çoklu zaman dilimli (M5–H4) teknik analiz grafiği
 (olası giriş/SL/TP1-2-3, AL/SAT/BEKLE durumu, Güven %). Ağ dışında LLM
 KULLANMAZ — strateji tamamen kural bazlıdır:
 
@@ -40,7 +40,6 @@ HTTP_TIMEOUT = 20
 # (SMA50 + swing tespiti için pay bırakılır), grafikte gösterilecek mum
 # sayısı, ve (varsa) Yahoo yedek kaynağının karşılığı.
 TIMEFRAMES = {
-    "M1":  {"td": "1min",  "fetch": 300, "gosterim": 80, "yahoo": "1m"},
     "M5":  {"td": "5min",  "fetch": 300, "gosterim": 80, "yahoo": "5m"},
     "M15": {"td": "15min", "fetch": 300, "gosterim": 80, "yahoo": "15m"},
     "M30": {"td": "30min", "fetch": 300, "gosterim": 80, "yahoo": "30m"},
@@ -120,7 +119,7 @@ def _sma(degerler, pencere):
 
 def _atr(mumlar, pencere=14):
     """Ortalama Gerçek Aralık (ATR) — SL tamponunu zaman dilimine göre
-    ölçeklemek için. Sabit yüzdelik tampon, M1/M5 gibi küçük aralıklı
+    ölçeklemek için. Sabit yüzdelik tampon, M5 gibi küçük aralıklı
     zaman dilimlerinde SL'i gereksiz uzağa taşıyıp risk/ödül oranını bozuyordu."""
     if len(mumlar) < pencere + 1:
         return None
@@ -186,7 +185,7 @@ def analiz_uret(zaman_dilimi=VARSAYILAN_ZD, spot_fiyat=None):
     """OHLC çeker, giriş/SL/TP1-2-3 + durum + güven hesaplar.
     (mumlar, analiz) döndürür; analiz LLM'e ASLA gitmez, sadece kural bazlı hesap.
 
-    `zaman_dilimi`: "M1", "M5", "M15", "M30", "H1" veya "H4".
+    `zaman_dilimi`: "M5", "M15", "M30", "H1" veya "H4".
 
     Önce Twelve Data'nın gerçek XAU/USD SPOT verisini dener. Anahtar yoksa ya
     da istek başarısız olursa Yahoo Finance'in GC=F (vadeli işlem) verisine
@@ -244,7 +243,7 @@ def analiz_uret(zaman_dilimi=VARSAYILAN_ZD, spot_fiyat=None):
     destek = destek_adaylari[0] if destek_adaylari else min(m["l"] for m in son60)
 
     # SL tamponu: sabit yüzde yerine ATR bazlı — zaman dilimi ne olursa olsun
-    # (M1 ya da H4) mumların gerçek volatilitesine göre ölçeklenir.
+    # (M5 ya da H4) mumların gerçek volatilitesine göre ölçeklenir.
     atr = _atr(mumlar, 14) or (guncel * 0.001)
     sl_tamponu = atr * 0.5
 

@@ -8,7 +8,7 @@ botla özel sohbetindeki mesajları dinler (kanal/grup değil).
 state/komut_takip.json'da işlenen son Telegram update_id saklanır, aynı
 mesaj iki kez işlenmez (Telegram'ın standart long-polling offset yöntemi).
 
-Desteklenen zaman dilimleri: M1, M5, M15, M30, H1, H4 (teknik.TIMEFRAMES).
+Desteklenen zaman dilimleri: M5, M15, M30, H1, H4 (teknik.TIMEFRAMES).
 Örnek: "/teknik", "/teknik M15", "/teknik h4"
 """
 import json

@@ -1,10 +1,10 @@
 {
-  "tarih": "2026-09-05",
+  "tarih": "2026-09-06",
   "takip": [
-    "11 Eylül ABD Ağustos TÜFE verisinin beklentiyi aşıp aşmadığı",
-    "15-16 Eylül FOMC'de gerçekten faiz artışı gelip gelmeyeceği",
-    "İran-ABD hattında yeni tırmanma ya da ateşkes sinyali çıkıp çıkmayacağı",
-    "TCMB'nin haftalık bilançoda altın alımına devam edip etmeyeceği"
+    "11 Eylül TSİ 15:30 ABD Ağustos TÜFE beklentiyi aşacak mı",
+    "15-16 Eylül FOMC'de faiz artışı gelecek mi (piyasa ~%50 fiyatlıyor)",
+    "Hürmüz Boğazı'nda yeni tırmanma mı ateşkes sinyali mi çıkacak",
+    "TCMB'nin bir sonraki haftalık bilançosunda (4 Eylül haftası) altın alımı sürecek mi"
   ],
   "fiyatlar": {
     "altin_ons": 4431.100098,

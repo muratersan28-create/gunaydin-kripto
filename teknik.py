@@ -20,16 +20,15 @@ Yatırım tavsiyesi değildir — yalnızca teknik/eğitim amaçlı gösterimdir
 """
 import io
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import requests
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle, FancyBboxPatch
+from matplotlib.patches import FancyBboxPatch
 from matplotlib.dates import DateFormatter
-from matplotlib.lines import Line2D
 import matplotlib.dates as mdates
 
 IST = ZoneInfo("Europe/Istanbul")
@@ -41,11 +40,14 @@ HTTP_TIMEOUT = 20
 # (SMA50 + swing tespiti için pay bırakılır), grafikte gösterilecek mum
 # sayısı, ve (varsa) Yahoo yedek kaynağının karşılığı.
 TIMEFRAMES = {
-    "M5":  {"td": "5min",  "fetch": 300, "gosterim": 80, "yahoo": "5m"},
-    "M15": {"td": "15min", "fetch": 300, "gosterim": 80, "yahoo": "15m"},
-    "M30": {"td": "30min", "fetch": 300, "gosterim": 80, "yahoo": "30m"},
-    "H1":  {"td": "1h",    "fetch": 250, "gosterim": 72, "yahoo": "60m"},
-    "H4":  {"td": "4h",    "fetch": 200, "gosterim": 60, "yahoo": None},
+    #        td       fetch  gosterim yahoo    pencere_saat (hafta sonu gibi
+    #                                            durgun dönemler ekranı
+    #                                            kaplamasın diye üst sınır)
+    "M5":  {"td": "5min",  "fetch": 600, "gosterim": 80, "yahoo": "5m",  "pencere_saat": 8},
+    "M15": {"td": "15min", "fetch": 300, "gosterim": 80, "yahoo": "15m", "pencere_saat": 24},
+    "M30": {"td": "30min", "fetch": 300, "gosterim": 80, "yahoo": "30m", "pencere_saat": 48},
+    "H1":  {"td": "1h",    "fetch": 250, "gosterim": 72, "yahoo": "60m", "pencere_saat": 96},
+    "H4":  {"td": "4h",    "fetch": 200, "gosterim": 60, "yahoo": None,  "pencere_saat": 360},
 }
 VARSAYILAN_ZD = "M5"
 
@@ -144,6 +146,52 @@ def _swing_noktalari(mumlar, kenar=3):
     return yuksekler, dusukler
 
 
+def _durgun_seyreltme(mumlar, pencere=10):
+    """Piyasa kapalıyken Twelve Data bazen onlarca mum boyunca neredeyse
+    hareketsiz (ama birebir aynı da değil — küçük rastgele kıpırdanma
+    katılmış) veri döndürüyor: gerçek fiyat hareketi değil, doldurma/
+    placeholder verisi. Bunlar ekranda üst üste binip bulanık, "birbirine
+    girmiş" bir şeride dönüşüyordu.
+
+    Tek bir mumun kendi aralığı (h-l) bunu ayırt etmeye yetmiyor — durgun
+    dönemdeki mumların KENDİ aralığı, gerçek ama sakin mumlarla neredeyse
+    aynı büyüklükte. Asıl ayırt edici işaret: `pencere` kadar ART ARDA mumun
+    TOPLAM (max high - min low) hareketi. Gerçek hareketlerde bu pencere
+    birkaç ATR'yi bulur; durgun/doldurma dönemde tek bir mumun ATR'sinden
+    bile az kalır. Böyle işaretlenen bloklardan sadece her 4'te biri
+    bırakılır; GERÇEK hareketli mumlara dokunulmaz."""
+    n = len(mumlar)
+    if n < pencere * 2:
+        return mumlar
+    atr = _atr(mumlar, 14)
+    if not atr:
+        return mumlar
+    esik = atr * 1.5
+
+    durgun = [False] * n
+    for i in range(n - pencere + 1):
+        grup = mumlar[i:i + pencere]
+        genislik = max(m["h"] for m in grup) - min(m["l"] for m in grup)
+        if genislik < esik:
+            for k in range(i, i + pencere):
+                durgun[k] = True
+
+    sonuc = []
+    i = 0
+    while i < n:
+        if durgun[i]:
+            j = i
+            while j < n and durgun[j]:
+                j += 1
+            calisma = mumlar[i:j]
+            sonuc.extend(calisma[::8] if len(calisma) >= 5 else calisma)
+            i = j
+        else:
+            sonuc.append(mumlar[i])
+            i += 1
+    return sonuc
+
+
 def _spot_fiyat_cek():
     """gold-api.com'dan anlık ons altın SPOT fiyatını çeker (vadeli işlem değil)."""
     r = requests.get("https://api.gold-api.com/price/XAU", timeout=HTTP_TIMEOUT)
@@ -207,8 +255,13 @@ def analiz_uret(zaman_dilimi=VARSAYILAN_ZD, spot_fiyat=None):
         mumlar = _ohlc_cek_yahoo(zaman_dilimi)
         kaynak = "yahoo"
 
+    # Bu kontrol SEYRELTMEDEN ÖNCE yapılmalı: seyreltme piyasa durgunken mum
+    # sayısını (kasıtlı olarak) büyük ölçüde azaltabiliyor, bu normal bir
+    # sonuç, "yetersiz veri" hatası değil.
     if len(mumlar) < 60:
         raise RuntimeError(f"Yeterli mum verisi yok ({len(mumlar)} mum, kaynak: {kaynak})")
+
+    mumlar = _durgun_seyreltme(mumlar)
 
     if kaynak == "yahoo":
         if spot_fiyat is None:
@@ -290,22 +343,28 @@ def _etiketleri_ayir(seviyeler, min_bosluk):
     """[(deger, ad), ...] -> {ad: etiket_y} — değerleri sırayı koruyarak
     min_bosluk kadar ayırır (üst üste binmesinler diye).
 
-    İleri+geri geçişli, sabit tekrar sayılı bir düzleştirme kullanır — bazı
-    değer kombinasyonlarında komşu çiftleri sırayla düzeltmeye çalışan bir
-    while-döngüsü birbirini bozup SONSUZA KADAR salınabiliyordu (gerçek bug,
-    H1 verisiyle ortaya çıktı). Bu yöntem sabit sayıda geçiş yapar, her
-    zaman sonlanması garantidir.
+    ÖNCEKİ SÜRÜMLER hem sonsuz döngüye girebiliyordu (H1 verisiyle bulundu)
+    hem de ileri+geri geçişleri karıştırınca bazı durumlarda (piyasa saatlerce
+    aşırı durgun kalıp aniden hareketlenince, GİRİŞ/SL/TP birbirine çok
+    yaklaşınca) minimum boşluğu GARANTİ ETMİYORDU — etiketler yine üst üste
+    binebiliyordu. Bu yüzden matematiksel olarak KESİN doğru bir yönteme
+    geçildi: TEK bir ileri geçiş, sırayı koruyarak minimum boşluğu her zaman
+    sağlar (ispatı basit: her adımda bir önceki, zaten düzeltilmiş değere
+    göre itiliyor). Ardından tüm grubu TEK BLOK olarak kaydırıp orijinal
+    ağırlık merkezine yakın tutuyoruz — toplu kaydırma aralarındaki
+    boşlukları bozmaz, sadece grubu doğal konumuna yaklaştırır.
     """
     sirali = sorted(seviyeler, key=lambda x: x[0])
     y = [s[0] for s in sirali]
     n = len(y)
-    for _ in range(4):
-        for i in range(1, n):                    # ileri geçiş
-            if y[i] - y[i - 1] < min_bosluk:
-                y[i] = y[i - 1] + min_bosluk
-        for i in range(n - 2, -1, -1):            # geri geçiş
-            if y[i + 1] - y[i] < min_bosluk:
-                y[i] = y[i + 1] - min_bosluk
+    dogal_merkez = sum(y) / n
+
+    for i in range(1, n):                    # tek ileri geçiş — boşluk garantili
+        if y[i] - y[i - 1] < min_bosluk:
+            y[i] = y[i - 1] + min_bosluk
+
+    kaydirma = dogal_merkez - (sum(y) / n)    # toplu kaydırma; boşlukları bozmaz
+    y = [v + kaydirma for v in y]
     return {sirali[i][1]: y[i] for i in range(n)}
 
 
@@ -316,7 +375,18 @@ def grafik_olustur(mumlar, analiz, son_n=None):
     zd = analiz.get("zaman_dilimi", VARSAYILAN_ZD)
     if son_n is None:
         son_n = TIMEFRAMES[zd]["gosterim"]
-    veri = mumlar[-son_n:]
+    # Mum SAYISI yerine gerçek SAAT aralığıyla sınırla — yoksa hafta sonu gibi
+    # uzun durgun dönemler (seyreltmeden sonra bile) "son N mum" penceresini
+    # geriye doğru çok fazla gerçek zamana yayıp ekranın çoğunu kaplıyordu.
+    pencere_saat = TIMEFRAMES[zd].get("pencere_saat")
+    if pencere_saat:
+        son_zaman = _t_parse(mumlar[-1]["t"])
+        sinir = son_zaman - timedelta(hours=pencere_saat)
+        veri = [m for m in mumlar if _t_parse(m["t"]) >= sinir]
+        if len(veri) < 15:  # pencere çok durgunse en azından bir miktar mum göster
+            veri = mumlar[-min(son_n, len(mumlar)):]
+    else:
+        veri = mumlar[-son_n:]
     yon = "BUY" if analiz["yon"].startswith("LONG") else "SELL"
     giris, sl = analiz["giris"], analiz["sl"]
     tp1, tp2, tp3 = analiz["tp1"], analiz["tp2"], analiz["tp3"]
@@ -330,24 +400,29 @@ def grafik_olustur(mumlar, analiz, son_n=None):
         adim = zamanlar[1] - zamanlar[0]
     else:
         adim = mdates.timedelta(minutes=5)
-    genislik_gun = abs(adim.total_seconds()) / 86400 * 0.88
-    min_govde = (max(m["h"] for m in veri) - min(m["l"] for m in veri)) * 0.006
 
-    for i, m in enumerate(veri):
-        renk = UP if m["c"] >= m["o"] else DOWN
-        ax.plot([zamanlar[i], zamanlar[i]], [m["l"], m["h"]], color=renk, linewidth=1.3, zorder=2)
-        alt = min(m["o"], m["c"])
-        yukseklik = max(abs(m["c"] - m["o"]), min_govde)
-        ax.add_patch(Rectangle((mdates.date2num(zamanlar[i]) - genislik_gun / 2, alt),
-                                genislik_gun, yukseklik, facecolor=renk, edgecolor="none", zorder=3))
+    # Mum yerine TİK (kapanış fiyatlarını birleştiren çizgi) grafiği: veri
+    # kaynağı piyasa durgunken tekrarlayan/gürültülü OHLC döndürdüğünden mum
+    # gövde+fitili durgun dönemde birbirine giren bulanık bir şeride
+    # dönüşüyordu. Kapanıştan kapanışa renkli çizgi bu sorunu kökten çözüyor:
+    # durgun dönemde düz/ince bir çizgi, gerçek harekette net bir yol çizer.
+    kapanislar = [m["c"] for m in veri]
+    for i in range(1, len(veri)):
+        renk = UP if kapanislar[i] >= kapanislar[i - 1] else DOWN
+        ax.plot([zamanlar[i - 1], zamanlar[i]], [kapanislar[i - 1], kapanislar[i]],
+                color=renk, linewidth=1.6, zorder=2)
 
     son_mum_num = mdates.date2num(zamanlar[-1])
     x1_num = son_mum_num + abs(adim.total_seconds()) / 86400 * 9
     x1_dt = mdates.num2date(x1_num).replace(tzinfo=None)
     kirilma_num = son_mum_num + (x1_num - son_mum_num) * 0.15
 
-    tum_y_araligi = max(m["h"] for m in veri) - min(m["l"] for m in veri)
-    min_bosluk = tum_y_araligi * 0.045
+    # min_bosluk, grafiğin GERÇEKTE çizileceği dikey ölçeğe göre hesaplanmalı —
+    # aşağıdaki ölçekle aynı taban kullanılıyor, yoksa etiketler ham fiyat
+    # aralığına göre ayrılıp grafik daha sonra farklı bir aralığa
+    # genişleyince o boşluk ekranda görünmez hale gelip üst üste binebiliyordu.
+    tum_y_araligi_kapanis = max(kapanislar) - min(kapanislar)
+    min_bosluk = max(tum_y_araligi_kapanis, 0.01) * 0.045
     etiket_y = _etiketleri_ayir(
         [(giris, "GİRİŞ"), (sl, "SL"), (tp1, "TP1"), (tp2, "TP2"), (tp3, "TP3")], min_bosluk)
 
@@ -378,32 +453,14 @@ def grafik_olustur(mumlar, analiz, son_n=None):
     etiket_kutusu("SL", sl, SL_RENK)
 
     ax.set_xlim(zamanlar[0], x1_dt)
-    tum_y = [m["l"] for m in veri] + [m["h"] for m in veri] + list(etiket_y.values())
+    tum_y = kapanislar + list(etiket_y.values())
     alt_dogal, ust_dogal = min(tum_y), max(tum_y)
-    araci = ust_dogal - alt_dogal
-
-    # Piyasa çok durgunken (tüm mumların toplam aralığı, tek bir mumun kendi
-    # fitiline yakın kalıyor) tek bir mum grafiğin tamamını kaplayan sahte bir
-    # "sivri uç" gibi görünüyordu. Görünen aralığa bir TABAN koyarak (en büyük
-    # tek mumun ~6 katı) bunu önlüyoruz — gerçek veri değişmiyor, sadece
-    # dikey ölçek aşırı yakınlaşmıyor.
-    en_buyuk_mum = max(m["h"] - m["l"] for m in veri)
-    min_gerekli_araci = en_buyuk_mum * 3
-    if araci < min_gerekli_araci:
-        orta = (alt_dogal + ust_dogal) / 2
-        alt_dogal = orta - min_gerekli_araci / 2
-        ust_dogal = orta + min_gerekli_araci / 2
-        araci = min_gerekli_araci
+    araci = ust_dogal - alt_dogal or (kapanislar[-1] * 0.001)
 
     # Üstte CANLI BID/ASK yazısı için, altta açıklama kutusu için pay bırak —
     # yoksa SL/GİRİŞ/TP çizgileri (senaryoya göre üstte ya da altta kalabilir)
     # bu sabit-konumlu öğelerin üzerine biniyordu.
     ax.set_ylim(alt_dogal - araci * 0.22, ust_dogal + araci * 0.16)
-
-    # SL ve TP3 (en dış sınırlar) için ince "bölge" gölgelemesi
-    bolge_yuksekligi = araci * 0.012
-    ax.axhspan(sl - bolge_yuksekligi, sl + bolge_yuksekligi, color=SL_RENK, alpha=0.12, zorder=0)
-    ax.axhspan(tp3 - bolge_yuksekligi, tp3 + bolge_yuksekligi, color=TP_RENK, alpha=0.12, zorder=0)
 
     ax.yaxis.tick_right()
     ax.tick_params(colors=MUTED, labelsize=8.5)
@@ -417,16 +474,6 @@ def grafik_olustur(mumlar, analiz, son_n=None):
 
     ax.text(0.008, 0.965, f"CANLI BID: {analiz['bid']:,.2f}   |   ASK: {analiz['ask']:,.2f}",
             transform=ax.transAxes, color=INK, fontsize=9.5, va="top", ha="left", zorder=6)
-
-    # Lejant kutusu (üst sol)
-    lejant_elemanlari = [
-        Line2D([0], [0], color=GIRIS_RENK, lw=1.8, label="Giriş"),
-        Line2D([0], [0], color=SL_RENK, lw=1.8, label="SL"),
-        Line2D([0], [0], color=TP_RENK, lw=1.5, linestyle="--", label="TP1 / TP2 / TP3"),
-    ]
-    ax.legend(handles=lejant_elemanlari, loc="upper left", frameon=True, fontsize=8.5,
-              facecolor=BG, edgecolor="#c9cdd4", framealpha=0.95,
-              bbox_to_anchor=(0.006, 0.895), bbox_transform=ax.transAxes)
 
     kutu = FancyBboxPatch((0.008, 0.008), 0.30, 0.115, transform=ax.transAxes,
                           boxstyle="round,pad=0.01,rounding_size=0.012",

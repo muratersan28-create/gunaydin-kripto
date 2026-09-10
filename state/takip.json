@@ -1,16 +1,16 @@
 {
-  "tarih": "2026-09-09",
+  "tarih": "2026-09-10",
   "takip": [
-    "TCMB PPK faiz kararı 10 Eylül 14:00 - %37'de sabit mi kalacak",
-    "CME FedWatch Eylül FOMC faiz artırım olasılığı %58-63 bandında mı kalacak",
-    "Hürmüz Boğazı'nda yeni çatışma mı deeskalasyon sinyali mi çıkacak",
-    "Ons altın $4,380 seviyesinin altında kapanışını sürdürecek mi"
+    "TCMB PPK kararı bugün 14:00'te %37'de sabit mi kaldı",
+    "ABD PPI (14:30 TSİ civarı açıklanacak) beklenti olan %0.4'ün üzerinde mi geldi",
+    "Hürmüz Boğazı'nda yeni bir çatışma mı yoksa deeskalasyon sinyali mi çıktı",
+    "Ons altın $4,410 direncinin üzerinde günü kapatabildi mi"
   ],
   "fiyatlar": {
-    "altin_ons": 4379.899902,
-    "gram_altin": 6823.99432757048,
-    "gumus_ons": 66.355003,
-    "usdtry": 48.46,
-    "eurtry": 56.2814
+    "altin_ons": 4408.600098,
+    "gram_altin": 6871.2612716930735,
+    "gumus_ons": 67.539001,
+    "usdtry": 48.478,
+    "eurtry": 56.4857
   }
 }

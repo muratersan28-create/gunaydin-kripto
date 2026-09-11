@@ -1,16 +1,16 @@
 {
-  "tarih": "2026-09-10",
+  "tarih": "2026-09-11",
   "takip": [
-    "TCMB PPK kararı bugün 14:00'te %37'de sabit mi kaldı",
-    "ABD PPI (14:30 TSİ civarı açıklanacak) beklenti olan %0.4'ün üzerinde mi geldi",
-    "Hürmüz Boğazı'nda yeni bir çatışma mı yoksa deeskalasyon sinyali mi çıktı",
-    "Ons altın $4,410 direncinin üzerinde günü kapatabildi mi"
+    "ABD TÜFE (CPI) verisi bugün 15:30 TSİ'de beklentinin üzerinde mi geldi",
+    "Hürmüz Boğazı'nda çatışma tırmandı mı yoksa sakinleşti mi",
+    "Ons altın $4,300 desteğinin altına sarktı mı yoksa toparlandı mı",
+    "Fed Eylül faiz artırım olasılığı %60'ın üzerine mi çıktı yoksa geriledi mi"
   ],
   "fiyatlar": {
-    "altin_ons": 4408.600098,
-    "gram_altin": 6871.2612716930735,
-    "gumus_ons": 67.539001,
-    "usdtry": 48.478,
-    "eurtry": 56.4857
+    "altin_ons": 4333.299805,
+    "gram_altin": 6756.266361948159,
+    "gumus_ons": 63.667,
+    "usdtry": 48.495,
+    "eurtry": 56.3316
   }
 }

@@ -1,16 +1,16 @@
 {
-  "tarih": "2026-09-11",
+  "tarih": "2026-09-12",
   "takip": [
-    "ABD TÜFE (CPI) verisi bugün 15:30 TSİ'de beklentinin üzerinde mi geldi",
-    "Hürmüz Boğazı'nda çatışma tırmandı mı yoksa sakinleşti mi",
-    "Ons altın $4,300 desteğinin altına sarktı mı yoksa toparlandı mı",
-    "Fed Eylül faiz artırım olasılığı %60'ın üzerine mi çıktı yoksa geriledi mi"
+    "Hürmüz Boğazı'nda hafta sonu yeni saldırı/tırmanma yaşandı mı",
+    "Ons altın $4.350 direncini kırdı mı yoksa $4.300 desteğine geri çekildi mi",
+    "Fed Eylül faiz artırım ihtimali %70'in üzerine mi çıktı yoksa geriledi mi",
+    "Brent petrol 100 dolar üzerinde kalıcı mı"
   ],
   "fiyatlar": {
-    "altin_ons": 4333.299805,
-    "gram_altin": 6756.266361948159,
-    "gumus_ons": 63.667,
-    "usdtry": 48.495,
-    "eurtry": 56.3316
+    "altin_ons": 4349.700195,
+    "gram_altin": 6795.96149444682,
+    "gumus_ons": 64.622002,
+    "usdtry": 48.596,
+    "eurtry": 56.3329
   }
 }
